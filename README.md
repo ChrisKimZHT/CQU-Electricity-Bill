@@ -25,9 +25,9 @@ pip install -r requirements.txt
 
 ```bash
 python -m cqu_electricity once   # 单次抓取并追加到 history.csv
-python -m cqu_electricity daemon # 按 .env 中的 SCHEDULE_TIMES 持续定时抓取
+python -m cqu_electricity daemon # 按 .env 中的 Cron 计划持续运行
 python -m cqu_electricity plot   # 根据 history.csv 生成图表 history.png
-python -m cqu_electricity email  # 抓取最新数据、生成图表并立即发送邮件
+python -m cqu_electricity email  # 使用 history.csv 最新记录生成图表并立即发送邮件
 ```
 
 ## 容器运行

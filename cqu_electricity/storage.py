@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import csv
+from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from .models import MeterReading
@@ -46,3 +48,24 @@ class CsvStore:
                 writer.writeheader()
             writer.writerow(row)
         return row
+
+    def latest(self) -> MeterReading:
+        if not self.snapshots_path.exists():
+            raise FileNotFoundError(f"历史数据不存在：{self.snapshots_path}")
+        with self.snapshots_path.open("r", encoding="utf-8-sig", newline="") as handle:
+            rows = list(csv.DictReader(handle))
+        if not rows:
+            raise ValueError("history.csv 中没有可用于发送邮件的数据")
+        row = rows[-1]
+        try:
+            return MeterReading(
+                captured_at=datetime.fromisoformat(row["captured_at"]),
+                room=row["room"],
+                building=row["building"],
+                balance_yuan=Decimal(row["balance_yuan"]),
+                meter_reading_kwh=Decimal(row["meter_reading_kwh"]),
+                subsidy_kwh=Decimal(row["subsidy_kwh"]) if row.get("subsidy_kwh") else None,
+                meter_address=row.get("meter_address") or None,
+            )
+        except (KeyError, ValueError, InvalidOperation) as exc:
+            raise ValueError("history.csv 最后一行格式无效") from exc

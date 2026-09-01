@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import time
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from apscheduler.triggers.cron import CronTrigger
 from dotenv import load_dotenv
 import os
 
@@ -40,22 +40,18 @@ def _boolean(name: str, default: bool = False) -> bool:
     raise ConfigError(f"{name} 必须是 true 或 false，当前值为 {raw!r}")
 
 
-def _schedule_times(raw: str) -> tuple[time, ...]:
-    result: list[time] = []
-    for item in raw.split(","):
-        item = item.strip()
-        if not item:
-            continue
+def _cron_expressions(raw: str, name: str, timezone: ZoneInfo) -> tuple[str, ...]:
+    expressions = tuple(dict.fromkeys(item.strip() for item in raw.split(";") if item.strip()))
+    if not expressions:
+        raise ConfigError(f"{name} 至少需要一个 Cron 表达式")
+    for expression in expressions:
         try:
-            hour_text, minute_text = item.split(":", 1)
-            result.append(time(hour=int(hour_text), minute=int(minute_text)))
-        except (ValueError, TypeError) as exc:
+            CronTrigger.from_crontab(expression, timezone=timezone)
+        except ValueError as exc:
             raise ConfigError(
-                f"SCHEDULE_TIMES 中的 {item!r} 无效，应使用 HH:MM，例如 00:00,12:00"
+                f"{name} 中的 {expression!r} 无效，应使用五段 Cron 表达式"
             ) from exc
-    if not result:
-        raise ConfigError("SCHEDULE_TIMES 至少需要一个 HH:MM 时刻")
-    return tuple(dict.fromkeys(result))
+    return expressions
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,13 +60,14 @@ class Settings:
     password: str
     room: str
     building: str | None
-    schedule_times: tuple[time, ...]
+    schedule_cron: tuple[str, ...]
     timezone: ZoneInfo
     data_dir: Path
     request_timeout: int
     login_retries: int
     log_level: str
     email_enabled: bool
+    email_schedule_cron: tuple[str, ...]
     smtp_host: str
     smtp_port: int
     smtp_username: str
@@ -99,13 +96,22 @@ class Settings:
             password=_required("CQU_PASSWORD"),
             room=_required("CQU_ROOM").upper(),
             building=os.getenv("CQU_BUILDING", "").strip() or None,
-            schedule_times=_schedule_times(os.getenv("SCHEDULE_TIMES", "00:00")),
+            schedule_cron=_cron_expressions(
+                os.getenv("SCHEDULE_CRON", "0 0,12 * * *"),
+                "SCHEDULE_CRON",
+                timezone,
+            ),
             timezone=timezone,
             data_dir=Path(os.getenv("DATA_DIR", ".")).expanduser(),
             request_timeout=_positive_int("REQUEST_TIMEOUT", 20),
             login_retries=_positive_int("LOGIN_RETRIES", 8),
             log_level=os.getenv("LOG_LEVEL", "INFO").strip().upper(),
             email_enabled=_boolean("EMAIL_ENABLED", False),
+            email_schedule_cron=_cron_expressions(
+                os.getenv("EMAIL_SCHEDULE_CRON", "0 8 * * *"),
+                "EMAIL_SCHEDULE_CRON",
+                timezone,
+            ),
             smtp_host=os.getenv("SMTP_HOST", "").strip(),
             smtp_port=_positive_int("SMTP_PORT", 465),
             smtp_username=os.getenv("SMTP_USERNAME", "").strip(),
