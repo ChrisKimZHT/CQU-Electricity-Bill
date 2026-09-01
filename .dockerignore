@@ -1,0 +1,13 @@
+.git
+.gitignore
+.vscode
+.env
+.env.*
+!.env.example
+.matplotlib
+__pycache__
+*.py[cod]
+*.csv
+*.png
+sample_*
+

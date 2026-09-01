@@ -76,6 +76,61 @@ SMTP STARTTLS（常见于 587 端口）需要设置 `SMTP_USE_SSL=false`、`SMTP
 
 Windows 下可用任务计划程序在登录或开机时执行以上 `daemon` 命令；Linux 可交给 systemd、supervisor 或 Docker 管理。程序自身不静默派生进程，日志与停止行为更容易管理。
 
+## Docker
+
+构建镜像：
+
+```powershell
+docker build -t cqu-electricity-bill .
+```
+
+默认启动命令为 `daemon`。账号、房间和定时配置通过 `-e` 手动传入；`DATA_DIR` 已由容器入口固定为 `/data`，挂载该目录即可持久化 `history.csv` 与 `history.png`：
+
+```powershell
+docker run -d `
+  --name cqu-electricity-bill `
+  --restart unless-stopped `
+  -e CQU_ACCOUNT="你的学号" `
+  -e CQU_PASSWORD="你的查询密码" `
+  -e CQU_ROOM="D3617" `
+  -e CQU_BUILDING="兰园3栋" `
+  -e SCHEDULE_TIMES="00:00,12:00" `
+  -e TIMEZONE="Asia/Shanghai" `
+  -e LOG_LEVEL="INFO" `
+  -v "${PWD}/data:/data" `
+  cqu-electricity-bill
+```
+
+需要自动发送邮件时，继续添加 SMTP 环境变量：
+
+```powershell
+  -e EMAIL_ENABLED="true" `
+  -e SMTP_HOST="smtp.example.com" `
+  -e SMTP_PORT="465" `
+  -e SMTP_USERNAME="your_email@example.com" `
+  -e SMTP_PASSWORD="你的SMTP授权码" `
+  -e SMTP_FROM="your_email@example.com" `
+  -e SMTP_TO="recipient@example.com" `
+  -e SMTP_USE_SSL="true" `
+  -e SMTP_STARTTLS="false" `
+```
+
+查看日志：
+
+```powershell
+docker logs -f cqu-electricity-bill
+```
+
+也可以把上述相同的 `-e` 和 `-v` 参数用于单次抓取、制图或邮件发送，并在镜像名称后指定命令：
+
+```powershell
+docker run --rm [相同的 -e 参数] -v "${PWD}/data:/data" cqu-electricity-bill once
+docker run --rm [相同的 -e 参数] -v "${PWD}/data:/data" cqu-electricity-bill plot
+docker run --rm [相同的 -e 参数] -v "${PWD}/data:/data" cqu-electricity-bill email
+```
+
+镜像内安装了 Noto CJK 中文字体，Docker 生成图表时不会依赖宿主机的微软雅黑。
+
 ## CSV 输出
 
 每次抓取都会向项目根目录的 `history.csv` 追加一行原始数据，字段包括抓取时间、房间、楼栋、余额、电表累计读数、剩余电补助和电表地址。程序不计算增量、每日汇总或估算费用。可通过 `DATA_DIR` 改变保存目录。
