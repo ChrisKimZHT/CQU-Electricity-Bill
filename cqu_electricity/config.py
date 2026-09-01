@@ -31,6 +31,15 @@ def _positive_int(name: str, default: int) -> int:
     return value
 
 
+def _boolean(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name, str(default)).strip().lower()
+    if raw in {"1", "true", "yes", "on"}:
+        return True
+    if raw in {"0", "false", "no", "off"}:
+        return False
+    raise ConfigError(f"{name} 必须是 true 或 false，当前值为 {raw!r}")
+
+
 def _schedule_times(raw: str) -> tuple[time, ...]:
     result: list[time] = []
     for item in raw.split(","):
@@ -61,6 +70,17 @@ class Settings:
     request_timeout: int
     login_retries: int
     log_level: str
+    email_enabled: bool
+    smtp_host: str
+    smtp_port: int
+    smtp_username: str
+    smtp_password: str
+    smtp_from: str
+    smtp_to: tuple[str, ...]
+    smtp_use_ssl: bool
+    smtp_starttls: bool
+    smtp_timeout: int
+    email_subject_prefix: str
     portal_url: str
     electricity_url: str
     fee_item_id: str
@@ -85,6 +105,23 @@ class Settings:
             request_timeout=_positive_int("REQUEST_TIMEOUT", 20),
             login_retries=_positive_int("LOGIN_RETRIES", 8),
             log_level=os.getenv("LOG_LEVEL", "INFO").strip().upper(),
+            email_enabled=_boolean("EMAIL_ENABLED", False),
+            smtp_host=os.getenv("SMTP_HOST", "").strip(),
+            smtp_port=_positive_int("SMTP_PORT", 465),
+            smtp_username=os.getenv("SMTP_USERNAME", "").strip(),
+            smtp_password=os.getenv("SMTP_PASSWORD", ""),
+            smtp_from=os.getenv("SMTP_FROM", "").strip(),
+            smtp_to=tuple(
+                address.strip()
+                for address in os.getenv("SMTP_TO", "").split(",")
+                if address.strip()
+            ),
+            smtp_use_ssl=_boolean("SMTP_USE_SSL", True),
+            smtp_starttls=_boolean("SMTP_STARTTLS", False),
+            smtp_timeout=_positive_int("SMTP_TIMEOUT", 20),
+            email_subject_prefix=os.getenv(
+                "EMAIL_SUBJECT_PREFIX", "重庆大学电费监控"
+            ).strip(),
             portal_url=os.getenv("PORTAL_URL", "http://card.cqu.edu.cn").rstrip("/"),
             electricity_url=os.getenv(
                 "ELECTRICITY_URL",

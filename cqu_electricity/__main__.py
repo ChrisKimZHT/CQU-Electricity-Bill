@@ -12,13 +12,17 @@ from loguru import logger
 from .client import CquElectricityClient, CquError
 from .chart import ChartError, draw_history_chart
 from .config import ConfigError, Settings
+from .mailer import EmailError, send_electricity_email, validate_email_settings
+from .models import MeterReading
 from .storage import CsvStore
 
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="重庆大学宿舍电费监控")
     parser.add_argument(
-        "command", choices=("once", "daemon", "plot"), help="单次抓取、定时常驻或生成图表"
+        "command",
+        choices=("once", "daemon", "plot", "email"),
+        help="单次抓取、定时常驻、生成图表或抓取并发送邮件",
     )
     parser.add_argument("--env-file", default=".env", help="环境变量文件，默认 .env")
     parser.add_argument("--output", help="图表输出路径，默认 DATA_DIR/history.png")
@@ -57,8 +61,21 @@ def _job(settings: Settings) -> Callable[[], None]:
             )
         except Exception:
             logger.exception("电费抓取失败")
+            return
+        if settings.email_enabled:
+            try:
+                _deliver_email(settings, reading)
+            except Exception:
+                logger.exception("邮件发送失败")
 
     return run
+
+
+def _deliver_email(settings: Settings, reading: MeterReading) -> None:
+    chart_path = settings.data_dir / "history.png"
+    draw_history_chart(settings.data_dir / "history.csv", chart_path, settings.room)
+    send_electricity_email(settings, reading, chart_path)
+    logger.info("邮件已发送至：{}", ", ".join(settings.smtp_to))
 
 
 def main() -> int:
@@ -86,9 +103,16 @@ def main() -> int:
         logger.info("图表已生成：{}", result_path.resolve())
         return 0
 
+    if settings.email_enabled or args.command == "email":
+        try:
+            validate_email_settings(settings)
+        except EmailError as exc:
+            logger.error("邮件配置错误：{}", exc)
+            return 2
+
     job = _job(settings)
 
-    if args.command == "once":
+    if args.command in {"once", "email"}:
         try:
             reading = CquElectricityClient(settings).fetch()
             CsvStore(settings.data_dir).save(reading)
@@ -104,6 +128,15 @@ def main() -> int:
             reading.balance_yuan,
             reading.meter_reading_kwh,
         )
+        if settings.email_enabled or args.command == "email":
+            try:
+                _deliver_email(settings, reading)
+            except (ChartError, EmailError) as exc:
+                logger.error("邮件发送失败：{}", exc)
+                return 1
+            except Exception:
+                logger.exception("邮件发送失败")
+                return 1
         return 0
 
     scheduler = BlockingScheduler(timezone=settings.timezone)

@@ -50,6 +50,30 @@ python -m cqu_electricity plot
 python -m cqu_electricity plot --output charts/electricity.png
 ```
 
+抓取最新数据、生成 14 天图表并立即发送邮件：
+
+```powershell
+python -m cqu_electricity email
+```
+
+邮件的 HTML 正文包含当前余额、电表累计读数等信息，`history.png` 会转换为 Base64 Data URI 内嵌。若希望 `once` 和 `daemon` 每次成功抓取后自动发送，将 `.env` 中的 `EMAIL_ENABLED` 改为 `true`。
+
+SMTP SSL（常见于 465 端口）配置示例：
+
+```dotenv
+EMAIL_ENABLED=true
+SMTP_HOST=smtp.example.com
+SMTP_PORT=465
+SMTP_USERNAME=your_email@example.com
+SMTP_PASSWORD=你的SMTP授权码
+SMTP_FROM=your_email@example.com
+SMTP_TO=recipient@example.com
+SMTP_USE_SSL=true
+SMTP_STARTTLS=false
+```
+
+SMTP STARTTLS（常见于 587 端口）需要设置 `SMTP_USE_SSL=false`、`SMTP_STARTTLS=true`。多个收件人使用英文逗号分隔。部分邮箱要求使用单独的 SMTP 授权码，而不是邮箱登录密码。
+
 Windows 下可用任务计划程序在登录或开机时执行以上 `daemon` 命令；Linux 可交给 systemd、supervisor 或 Docker 管理。程序自身不静默派生进程，日志与停止行为更容易管理。
 
 ## CSV 输出
