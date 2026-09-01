@@ -48,3 +48,7 @@ docker run -d \
   -v "${PWD}/data:/data" \
   cqu-electricity-bill
 ```
+
+## 关于贡献
+
+欢迎在 Issue 中提出问题或建议，或通过 Pull Request 贡献代码，包括 AI 生成的代码。当前项目还缺少重庆大学 A/B/C 区的宿舍电费监控功能，欢迎贡献。
