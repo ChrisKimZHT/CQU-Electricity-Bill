@@ -1,4 +1,6 @@
 .vscode/
 .env
-*.csv
+history.csv
+history.png
+.matplotlib/
 __pycache__/

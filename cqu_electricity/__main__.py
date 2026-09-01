@@ -4,19 +4,24 @@ import argparse
 import signal
 import sys
 from collections.abc import Callable
+from pathlib import Path
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 from loguru import logger
 
 from .client import CquElectricityClient, CquError
+from .chart import ChartError, draw_history_chart
 from .config import ConfigError, Settings
 from .storage import CsvStore
 
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="重庆大学宿舍电费监控")
-    parser.add_argument("command", choices=("once", "daemon"), help="单次抓取或定时常驻")
+    parser.add_argument(
+        "command", choices=("once", "daemon", "plot"), help="单次抓取、定时常驻或生成图表"
+    )
     parser.add_argument("--env-file", default=".env", help="环境变量文件，默认 .env")
+    parser.add_argument("--output", help="图表输出路径，默认 DATA_DIR/history.png")
     return parser
 
 
@@ -64,6 +69,23 @@ def main() -> int:
         print(f"配置错误：{exc}", file=sys.stderr)
         return 2
     _configure_logging(settings.log_level)
+
+    if args.command == "plot":
+        output_path = (
+            settings.data_dir / "history.png"
+            if args.output is None
+            else Path(args.output)
+        )
+        try:
+            result_path = draw_history_chart(
+                settings.data_dir / "history.csv", output_path, settings.room
+            )
+        except ChartError as exc:
+            logger.error("制图失败：{}", exc)
+            return 1
+        logger.info("图表已生成：{}", result_path.resolve())
+        return 0
+
     job = _job(settings)
 
     if args.command == "once":

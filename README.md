@@ -38,11 +38,25 @@ python -m cqu_electricity once
 python -m cqu_electricity daemon
 ```
 
+根据 `history.csv` 生成最近 14 个自然日的用电图表：
+
+```powershell
+python -m cqu_electricity plot
+```
+
+默认输出为 `history.png`。也可以指定输出位置：
+
+```powershell
+python -m cqu_electricity plot --output charts/electricity.png
+```
+
 Windows 下可用任务计划程序在登录或开机时执行以上 `daemon` 命令；Linux 可交给 systemd、supervisor 或 Docker 管理。程序自身不静默派生进程，日志与停止行为更容易管理。
 
 ## CSV 输出
 
 每次抓取都会向项目根目录的 `history.csv` 追加一行原始数据，字段包括抓取时间、房间、楼栋、余额、电表累计读数、剩余电补助和电表地址。程序不计算增量、每日汇总或估算费用。可通过 `DATA_DIR` 改变保存目录。
+
+制图时才会按日期选取当天最后一次记录，用当天与前一天的累计电表读数之差得到每日用电量。柱状图表示每日用电量，折线图表示当天最后一次余额；缺少采样的日期会留空，不会被错误地当作零用电。
 
 ## 常见问题
 
