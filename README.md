@@ -11,6 +11,9 @@ CQU_ACCOUNT=你的学号
 CQU_PASSWORD=你的查询密码
 CQU_ROOM=D1102
 CQU_BUILDING=兰园1栋
+SCHEDULE_TIME=00:00
+EMAIL_ENABLED=false
+EMAIL_SCHEDULE=08:00@1,3,5
 ```
 
 ## 直接运行
@@ -25,7 +28,7 @@ pip install -r requirements.txt
 
 ```bash
 python -m cqu_electricity once   # 单次抓取并追加到 history.csv
-python -m cqu_electricity daemon # 按 .env 中的 Cron 计划持续运行
+python -m cqu_electricity daemon # 按 .env 中的每日抓取和每周邮件计划持续运行
 python -m cqu_electricity plot   # 根据 history.csv 生成图表 history.png
 python -m cqu_electricity email  # 使用 history.csv 最新记录生成图表并立即发送邮件
 ```

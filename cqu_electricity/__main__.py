@@ -7,7 +7,6 @@ from collections.abc import Callable
 from pathlib import Path
 
 from apscheduler.schedulers.blocking import BlockingScheduler
-from apscheduler.triggers.cron import CronTrigger
 from loguru import logger
 
 from .client import CquElectricityClient, CquError
@@ -15,6 +14,7 @@ from .chart import ChartError, draw_history_chart
 from .config import ConfigError, Settings
 from .mailer import EmailError, send_electricity_email, validate_email_settings
 from .models import MeterReading
+from .schedule import daily_trigger, email_trigger
 from .storage import CsvStore
 
 
@@ -150,36 +150,34 @@ def main() -> int:
         return 0
 
     scheduler = BlockingScheduler(timezone=settings.timezone)
-    for index, expression in enumerate(settings.schedule_cron, start=1):
+    scheduler.add_job(
+        job,
+        daily_trigger(settings.schedule_time, settings.timezone),
+        id="capture",
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=3600,
+    )
+    if settings.email_enabled:
+        email_job = _email_job(settings)
         scheduler.add_job(
-            job,
-            CronTrigger.from_crontab(expression, timezone=settings.timezone),
-            id=f"capture-{index}",
+            email_job,
+            email_trigger(settings.email_schedule, settings.timezone),
+            id="email",
             max_instances=1,
             coalesce=True,
             misfire_grace_time=3600,
         )
-    if settings.email_enabled:
-        email_job = _email_job(settings)
-        for index, expression in enumerate(settings.email_schedule_cron, start=1):
-            scheduler.add_job(
-                email_job,
-                CronTrigger.from_crontab(expression, timezone=settings.timezone),
-                id=f"email-{index}",
-                max_instances=1,
-                coalesce=True,
-                misfire_grace_time=3600,
-            )
     signal.signal(signal.SIGTERM, lambda *_: scheduler.shutdown(wait=False))
     logger.info(
-        "后台监控已启动，抓取时间：{}（{}）",
-        "; ".join(settings.schedule_cron),
+        "后台监控已启动，每天抓取时间：{}（{}）",
+        settings.schedule_time,
         settings.timezone.key,
     )
     if settings.email_enabled:
         logger.info(
             "邮件定时发送已启用，发送时间：{}",
-            "; ".join(settings.email_schedule_cron),
+            settings.email_schedule,
         )
     try:
         scheduler.start()

@@ -4,9 +4,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from apscheduler.triggers.cron import CronTrigger
 from dotenv import load_dotenv
 import os
+import re
 
 
 class ConfigError(ValueError):
@@ -40,18 +40,24 @@ def _boolean(name: str, default: bool = False) -> bool:
     raise ConfigError(f"{name} 必须是 true 或 false，当前值为 {raw!r}")
 
 
-def _cron_expressions(raw: str, name: str, timezone: ZoneInfo) -> tuple[str, ...]:
-    expressions = tuple(dict.fromkeys(item.strip() for item in raw.split(";") if item.strip()))
-    if not expressions:
-        raise ConfigError(f"{name} 至少需要一个 Cron 表达式")
-    for expression in expressions:
-        try:
-            CronTrigger.from_crontab(expression, timezone=timezone)
-        except ValueError as exc:
-            raise ConfigError(
-                f"{name} 中的 {expression!r} 无效，应使用五段 Cron 表达式"
-            ) from exc
-    return expressions
+def _schedule_time(raw: str, name: str) -> str:
+    value = raw.strip()
+    if not re.fullmatch(r"(?:[01][0-9]|2[0-3]):[0-5][0-9]", value):
+        raise ConfigError(f"{name} 必须使用 HH:MM 格式（00:00～23:59），当前值为 {raw!r}")
+    return value
+
+
+def _email_schedule(raw: str) -> str:
+    parts = raw.strip().split("@")
+    if len(parts) != 2:
+        raise ConfigError("EMAIL_SCHEDULE 必须使用 HH:MM@星期 格式，例如 08:00@1,3,5")
+    time = _schedule_time(parts[0], "EMAIL_SCHEDULE 的时间")
+    weekdays = [day.strip() for day in parts[1].split(",")]
+    if any(day not in "01234567" or len(day) != 1 for day in weekdays):
+        raise ConfigError("EMAIL_SCHEDULE 的星期必须是逗号分隔的 0～7（0、7 均为周日）")
+    # 统一周日的两种写法，并去除重复星期。
+    days = dict.fromkeys("0" if day == "7" else day for day in weekdays)
+    return f"{time}@{','.join(days)}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,14 +66,14 @@ class Settings:
     password: str
     room: str
     building: str | None
-    schedule_cron: tuple[str, ...]
+    schedule_time: str
     timezone: ZoneInfo
     data_dir: Path
     request_timeout: int
     login_retries: int
     log_level: str
     email_enabled: bool
-    email_schedule_cron: tuple[str, ...]
+    email_schedule: str
     smtp_host: str
     smtp_port: int
     smtp_username: str
@@ -85,6 +91,12 @@ class Settings:
     @classmethod
     def from_env(cls, env_file: str | Path = ".env") -> "Settings":
         load_dotenv(env_file, override=False)
+        for old, new, example in (
+            ("SCHEDULE_CRON", "SCHEDULE_TIME", "00:00"),
+            ("EMAIL_SCHEDULE_CRON", "EMAIL_SCHEDULE", "08:00@0,1,2,3,4,5,6"),
+        ):
+            if old in os.environ and new not in os.environ:
+                raise ConfigError(f"{old} 已停用，请改用 {new}，例如 {new}={example}")
         timezone_name = os.getenv("TIMEZONE", "Asia/Shanghai").strip()
         try:
             timezone = ZoneInfo(timezone_name)
@@ -96,10 +108,9 @@ class Settings:
             password=_required("CQU_PASSWORD"),
             room=_required("CQU_ROOM").upper(),
             building=os.getenv("CQU_BUILDING", "").strip() or None,
-            schedule_cron=_cron_expressions(
-                os.getenv("SCHEDULE_CRON", "0 0,12 * * *"),
-                "SCHEDULE_CRON",
-                timezone,
+            schedule_time=_schedule_time(
+                os.getenv("SCHEDULE_TIME", "00:00"),
+                "SCHEDULE_TIME",
             ),
             timezone=timezone,
             data_dir=Path(os.getenv("DATA_DIR", ".")).expanduser(),
@@ -107,10 +118,8 @@ class Settings:
             login_retries=_positive_int("LOGIN_RETRIES", 8),
             log_level=os.getenv("LOG_LEVEL", "INFO").strip().upper(),
             email_enabled=_boolean("EMAIL_ENABLED", False),
-            email_schedule_cron=_cron_expressions(
-                os.getenv("EMAIL_SCHEDULE_CRON", "0 8 * * *"),
-                "EMAIL_SCHEDULE_CRON",
-                timezone,
+            email_schedule=_email_schedule(
+                os.getenv("EMAIL_SCHEDULE", "08:00@0,1,2,3,4,5,6"),
             ),
             smtp_host=os.getenv("SMTP_HOST", "").strip(),
             smtp_port=_positive_int("SMTP_PORT", 465),
