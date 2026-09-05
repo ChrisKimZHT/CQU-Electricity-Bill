@@ -62,6 +62,11 @@ def _job(settings: Settings) -> Callable[[], None]:
             )
         except Exception:
             logger.exception("电费抓取失败")
+            return
+        try:
+            _warn_low_balance(settings, reading)
+        except Exception:
+            logger.exception("余额警告邮件发送失败")
 
     return run
 
@@ -84,6 +89,15 @@ def _deliver_email(settings: Settings, reading: MeterReading) -> None:
     )
     send_electricity_email(settings, reading, chart_path)
     logger.info("邮件已发送至：{}", ", ".join(settings.smtp_to))
+
+
+def _warn_low_balance(settings: Settings, reading: MeterReading) -> None:
+    if not settings.balance_warning_enabled:
+        return
+    balance = reading.total_balance_yuan(settings.electricity_price)
+    if balance < settings.balance_warning_threshold:
+        logger.warning("余额 {} 元低于阈值 {} 元，正在发送邮件", balance, settings.balance_warning_threshold)
+        _deliver_email(settings, reading)
 
 
 def main() -> int:
@@ -113,6 +127,8 @@ def main() -> int:
 
     if args.command == "email" or (
         args.command == "daemon" and settings.email_enabled
+    ) or (
+        args.command in ("once", "daemon") and settings.balance_warning_enabled
     ):
         try:
             validate_email_settings(settings)
@@ -138,6 +154,11 @@ def main() -> int:
             f"{reading.total_balance_yuan(settings.electricity_price):.2f}",
             reading.meter_reading_kwh,
         )
+        try:
+            _warn_low_balance(settings, reading)
+        except Exception:
+            logger.exception("余额警告邮件发送失败")
+            return 1
         return 0
 
     if args.command == "email":

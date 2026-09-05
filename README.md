@@ -11,9 +11,9 @@ CQU_ACCOUNT=你的学号
 CQU_PASSWORD=你的查询密码
 CQU_ROOM=D1102
 CQU_BUILDING=兰园1栋
-SCHEDULE_TIME=00:00
-EMAIL_ENABLED=false
-EMAIL_SCHEDULE=08:00@1,3,5
+SCHEDULE_TIME=12:00            # 每日抓取时间
+EMAIL_ENABLED=true             # 电费邮件通知
+BALANCE_WARNING_ENABLED=true   # 余额不足警告
 ```
 
 ## 直接运行

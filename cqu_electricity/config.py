@@ -54,6 +54,18 @@ def _boolean(name: str, default: bool = False) -> bool:
     raise ConfigError(f"{name} 必须是 true 或 false，当前值为 {raw!r}")
 
 
+def _balance_warning_threshold() -> Decimal:
+    raw = os.getenv("BALANCE_WARNING_THRESHOLD", "10").strip()
+    message = "BALANCE_WARNING_THRESHOLD 必须是大于或等于 0 的金额（元）"
+    try:
+        value = Decimal(raw)
+    except InvalidOperation as exc:
+        raise ConfigError(message) from exc
+    if not value.is_finite() or value < 0:
+        raise ConfigError(message)
+    return value
+
+
 def _schedule_time(raw: str, name: str) -> str:
     value = raw.strip()
     if not re.fullmatch(r"(?:[01][0-9]|2[0-3]):[0-5][0-9]", value):
@@ -102,6 +114,8 @@ class Settings:
     electricity_url: str
     fee_item_id: str
     electricity_price: Decimal = DEFAULT_ELECTRICITY_PRICE
+    balance_warning_enabled: bool = False
+    balance_warning_threshold: Decimal = Decimal("10")
 
     @classmethod
     def from_env(cls, env_file: str | Path = ".env") -> "Settings":
@@ -159,4 +173,6 @@ class Settings:
             ).strip(),
             fee_item_id=os.getenv("FEE_ITEM_ID", "182").strip(),
             electricity_price=_electricity_price(),
+            balance_warning_enabled=_boolean("BALANCE_WARNING_ENABLED", False),
+            balance_warning_threshold=_balance_warning_threshold(),
         )
