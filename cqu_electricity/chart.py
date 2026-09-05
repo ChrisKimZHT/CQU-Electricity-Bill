@@ -8,6 +8,8 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
+from .models import DEFAULT_ELECTRICITY_PRICE, total_balance_yuan
+
 
 class ChartError(RuntimeError):
     """历史数据不足或格式错误。"""
@@ -27,7 +29,12 @@ def _decimal(raw: str, field: str, line_number: int) -> Decimal:
         raise ChartError(f"history.csv 第 {line_number} 行的 {field} 无效：{raw!r}") from exc
 
 
-def load_daily_points(history_path: Path, room: str, days: int = 14) -> list[DailyPoint]:
+def load_daily_points(
+    history_path: Path,
+    room: str,
+    days: int = 14,
+    electricity_price: Decimal = DEFAULT_ELECTRICITY_PRICE,
+) -> list[DailyPoint]:
     if not history_path.exists():
         raise ChartError(f"找不到历史数据文件：{history_path}")
 
@@ -49,6 +56,11 @@ def load_daily_points(history_path: Path, room: str, days: int = 14) -> list[Dai
                     f"history.csv 第 {line_number} 行 captured_at 无效：{row['captured_at']!r}"
                 ) from exc
             balance = _decimal(row["balance_yuan"], "balance_yuan", line_number)
+            subsidy = (
+                _decimal(row["subsidy_kwh"], "subsidy_kwh", line_number)
+                if row.get("subsidy_kwh") else None
+            )
+            balance = total_balance_yuan(balance, subsidy, electricity_price)
             meter = _decimal(row["meter_reading_kwh"], "meter_reading_kwh", line_number)
             current = latest_by_day.get(captured_at.date())
             if current is None or captured_at > current[0]:
@@ -74,7 +86,12 @@ def load_daily_points(history_path: Path, room: str, days: int = 14) -> list[Dai
     return points
 
 
-def draw_history_chart(history_path: Path, output_path: Path, room: str) -> Path:
+def draw_history_chart(
+    history_path: Path,
+    output_path: Path,
+    room: str,
+    electricity_price: Decimal = DEFAULT_ELECTRICITY_PRICE,
+) -> Path:
     matplotlib_config = output_path.parent / ".matplotlib"
     matplotlib_config.mkdir(parents=True, exist_ok=True)
     os.environ.setdefault("MPLCONFIGDIR", str(matplotlib_config.resolve()))
@@ -84,7 +101,7 @@ def draw_history_chart(history_path: Path, output_path: Path, room: str) -> Path
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    points = load_daily_points(history_path, room, days=14)
+    points = load_daily_points(history_path, room, days=14, electricity_price=electricity_price)
     labels = [point.day.strftime("%m-%d") for point in points]
     positions = list(range(len(points)))
 
@@ -116,6 +133,10 @@ def draw_history_chart(history_path: Path, output_path: Path, room: str) -> Path
     usage_axis.grid(axis="y", linestyle="--", alpha=0.25, zorder=1)
 
     balance_axis = usage_axis.twinx()
+    usage_axis.yaxis.tick_right()
+    usage_axis.yaxis.set_label_position("right")
+    balance_axis.yaxis.tick_left()
+    balance_axis.yaxis.set_label_position("left")
     line = balance_axis.plot(
         positions,
         [point.balance_yuan for point in points],

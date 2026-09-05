@@ -39,7 +39,8 @@ def _message(settings: Settings, reading: MeterReading, chart_path: Path) -> Ema
     def safe(value: object | None) -> str:
         return html.escape("—" if value in (None, "") else str(value))
 
-    subject = f"[{settings.email_subject_prefix}] {reading.room} 余额 {reading.balance_yuan} 元"
+    total_balance = f"{reading.total_balance_yuan(settings.electricity_price):.2f}"
+    subject = f"[{settings.email_subject_prefix}] {reading.room} 余额 {total_balance} 元"
     captured_at = reading.captured_at.strftime("%Y-%m-%d %H:%M:%S %Z")
     html_body = f"""\
 <!doctype html>
@@ -68,7 +69,7 @@ def _message(settings: Settings, reading: MeterReading, chart_path: Path) -> Ema
                     <td style="padding:18px 18px 16px;">
                       <div style="font-size:13px;color:#64748b;">当前电费余额</div>
                       <div style="margin-top:5px;font-size:30px;line-height:1.2;font-weight:700;color:#1f77b4;white-space:nowrap;">
-                        {safe(reading.balance_yuan)} <span style="font-size:16px;font-weight:500;">元</span>
+                        {safe(total_balance)} <span style="font-size:16px;font-weight:500;">元</span>
                       </div>
                       <div style="margin-top:10px;font-size:12px;line-height:1.5;color:#64748b;">
                         更新于 <span style="color:#334155;">{safe(captured_at)}</span>
@@ -83,6 +84,10 @@ def _message(settings: Settings, reading: MeterReading, chart_path: Path) -> Ema
                 <div style="margin-bottom:12px;font-size:17px;font-weight:700;color:#111827;">当前电费情况</div>
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
                        style="border-collapse:separate;border-spacing:0;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;font-size:14px;">
+                  <tr>
+                    <td style="padding:13px 16px;background:#f8fafc;color:#64748b;border-bottom:1px solid #e5e7eb;">真实余额</td>
+                    <td style="padding:13px 16px;font-weight:600;border-bottom:1px solid #e5e7eb;">{safe(reading.balance_yuan)} 元</td>
+                  </tr>
                   <tr>
                     <td style="width:42%;padding:13px 16px;background:#f8fafc;color:#64748b;border-bottom:1px solid #e5e7eb;">电表累计读数</td>
                     <td style="padding:13px 16px;font-weight:600;border-bottom:1px solid #e5e7eb;">{safe(reading.meter_reading_kwh)} 度</td>
@@ -124,7 +129,8 @@ def _message(settings: Settings, reading: MeterReading, chart_path: Path) -> Ema
         f"抓取时间：{captured_at}\n"
         f"房间：{reading.room}\n"
         f"楼栋：{reading.building}\n"
-        f"余额：{reading.balance_yuan} 元\n"
+        f"余额：{total_balance} 元\n"
+        f"真实余额：{reading.balance_yuan} 元\n"
         f"电表累计读数：{reading.meter_reading_kwh} 度\n"
         f"剩余电补助：{reading.subsidy_kwh if reading.subsidy_kwh is not None else '—'} 度\n"
         f"电表地址：{reading.meter_address or '—'}\n"

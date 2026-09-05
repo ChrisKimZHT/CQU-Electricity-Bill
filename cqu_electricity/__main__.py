@@ -57,7 +57,7 @@ def _job(settings: Settings) -> Callable[[], None]:
             logger.info(
                 "抓取成功：房间={} 余额={} 元 电表读数={} kWh",
                 reading.room,
-                reading.balance_yuan,
+                f"{reading.total_balance_yuan(settings.electricity_price):.2f}",
                 reading.meter_reading_kwh,
             )
         except Exception:
@@ -79,7 +79,9 @@ def _email_job(settings: Settings) -> Callable[[], None]:
 
 def _deliver_email(settings: Settings, reading: MeterReading) -> None:
     chart_path = settings.data_dir / "history.png"
-    draw_history_chart(settings.data_dir / "history.csv", chart_path, settings.room)
+    draw_history_chart(
+        settings.data_dir / "history.csv", chart_path, settings.room, settings.electricity_price
+    )
     send_electricity_email(settings, reading, chart_path)
     logger.info("邮件已发送至：{}", ", ".join(settings.smtp_to))
 
@@ -101,7 +103,7 @@ def main() -> int:
         )
         try:
             result_path = draw_history_chart(
-                settings.data_dir / "history.csv", output_path, settings.room
+                settings.data_dir / "history.csv", output_path, settings.room, settings.electricity_price
             )
         except ChartError as exc:
             logger.error("制图失败：{}", exc)
@@ -133,7 +135,7 @@ def main() -> int:
         logger.info(
             "抓取成功：房间={} 余额={} 元 电表读数={} kWh",
             reading.room,
-            reading.balance_yuan,
+            f"{reading.total_balance_yuan(settings.electricity_price):.2f}",
             reading.meter_reading_kwh,
         )
         return 0

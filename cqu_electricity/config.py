@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from dotenv import load_dotenv
 import os
 import re
+
+from .models import DEFAULT_ELECTRICITY_PRICE
 
 
 class ConfigError(ValueError):
@@ -28,6 +31,17 @@ def _positive_int(name: str, default: int) -> int:
         raise ConfigError(f"{name} 必须是整数，当前值为 {raw!r}") from exc
     if value <= 0:
         raise ConfigError(f"{name} 必须大于 0")
+    return value
+
+
+def _electricity_price() -> Decimal:
+    raw = os.getenv("ELECTRICITY_PRICE", str(DEFAULT_ELECTRICITY_PRICE)).strip()
+    try:
+        value = Decimal(raw)
+    except InvalidOperation as exc:
+        raise ConfigError("ELECTRICITY_PRICE 必须是大于 0 的电价（元/度）") from exc
+    if not value.is_finite() or value <= 0:
+        raise ConfigError("ELECTRICITY_PRICE 必须是大于 0 的电价（元/度）")
     return value
 
 
@@ -87,6 +101,7 @@ class Settings:
     portal_url: str
     electricity_url: str
     fee_item_id: str
+    electricity_price: Decimal = DEFAULT_ELECTRICITY_PRICE
 
     @classmethod
     def from_env(cls, env_file: str | Path = ".env") -> "Settings":
@@ -135,7 +150,7 @@ class Settings:
             smtp_starttls=_boolean("SMTP_STARTTLS", False),
             smtp_timeout=_positive_int("SMTP_TIMEOUT", 20),
             email_subject_prefix=os.getenv(
-                "EMAIL_SUBJECT_PREFIX", "重庆大学电费监控"
+                "EMAIL_SUBJECT_PREFIX", "电费监控"
             ).strip(),
             portal_url=os.getenv("PORTAL_URL", "http://card.cqu.edu.cn").rstrip("/"),
             electricity_url=os.getenv(
@@ -143,4 +158,5 @@ class Settings:
                 "http://card.cqu.edu.cn:8080/charge/feeitem/singleItem?feeitemid=182",
             ).strip(),
             fee_item_id=os.getenv("FEE_ITEM_ID", "182").strip(),
+            electricity_price=_electricity_price(),
         )
