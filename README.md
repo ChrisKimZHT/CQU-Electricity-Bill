@@ -2,6 +2,8 @@
 
 定时登录重庆大学缴费平台，抓取宿舍电费余额和电表累计读数，可生成用电图表，并通过 SMTP 邮件定时发送当前电费情况。
 
+<img src="screenshot.png" width="400">
+
 ## 配置文件
 
 复制 `.env.example` 为 `.env` 后进行编辑。完整配置和说明见 [.env.example](.env.example)，核心配置为：
